@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onWindowOffset: (cb) => ipcRenderer.on('window-offset', (_e, offset) => cb(offset)),
   onUpdateSvg: (cb) => ipcRenderer.on('update-svg', (_e, svg) => cb(svg)),
   onUpdateSize: (cb) => ipcRenderer.on('update-size', (_e, size) => cb(size)),
+  onUpdateColors: (cb) => ipcRenderer.on('update-colors', (_e, colors) => cb(colors)),
   setIgnoreMouse: (ignore) => ipcRenderer.send('set-ignore-mouse', ignore),
 });

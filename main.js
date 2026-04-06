@@ -35,6 +35,24 @@ function sendSvgToAll() {
   } catch { /* ignore */ }
 }
 
+// 펫별 색상 관리 — 새 펫이 생길 때만 랜덤 색 추가, 기존 색은 유지
+const PET_COLORS = ['#D97757', '#9B7ED8', '#5BA3C9', '#D4A843', '#5BBD6B', '#D46B7C'];
+const petColorMap = [];
+
+function ensureColors(count) {
+  while (petColorMap.length < count) {
+    petColorMap.push(PET_COLORS[Math.floor(Math.random() * PET_COLORS.length)]);
+  }
+}
+
+function sendColorsToAll() {
+  for (const win of overlayWindows) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('update-colors', petColorMap);
+    }
+  }
+}
+
 function sendSizeToAll() {
   const cfg = loadConfig();
   const size = cfg.petSize || 64;
@@ -78,6 +96,7 @@ function createOverlay() {
       win.webContents.send('window-offset', { x, y, width, height });
       sendSvgToAll();
       sendSizeToAll();
+      sendColorsToAll();
     });
 
     overlayWindows.push(win);
@@ -89,6 +108,10 @@ function createOverlay() {
   // 세션 감시
   sessionWatcher = new SessionWatcher();
   sessionWatcher.on('change', (count) => {
+    // 새 펫에 대해 색상 할당 (기존 펫 색상 유지)
+    ensureColors(count);
+    sendColorsToAll();
+
     for (const win of overlayWindows) {
       if (!win.isDestroyed()) {
         win.webContents.send('session-count', count);

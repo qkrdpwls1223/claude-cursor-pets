@@ -72,13 +72,15 @@
       '#D46B7C',  // 로즈
     ];
 
+    let SHUFFLED_COLORS = [...COLORS];
+
     // 기본 SVG (claudecode-color.svg)
     let baseSvg = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
       <path clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z" fill="#D97757" fill-rule="evenodd"/>
     </svg>`;
 
     function createClaudeSVG(index = 0) {
-      const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+      const color = SHUFFLED_COLORS[index % SHUFFLED_COLORS.length];
       // SVG 내 fill 색상을 인덱스별 색으로 교체
       return baseSvg.replace(/fill="[^"]*"/g, (match, offset) => {
         // 첫 번째 fill 속성만 색상 교체 (fill-rule 등은 건드리지 않음)
@@ -224,6 +226,14 @@
         el.style.height = size + 'px';
       });
       petSize = size;
+    });
+
+    window.electronAPI.onUpdateColors((colors) => {
+      SHUFFLED_COLORS = colors;
+      // 기존 pet들 색상 갱신
+      for (const pet of pets) {
+        pet.el.innerHTML = createClaudeSVG(pet.index);
+      }
     });
 
     window.electronAPI.onUpdateSvg((svg) => {
