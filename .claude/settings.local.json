@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/106078/**)",
+      "Bash(mkdir -p /j/02.Projects/claude-pets)",
+      "Bash(cmd.exe:*)",
+      "Bash(npm install:*)",
+      "Bash(dir \"j:\\\\02.Projects\\\\claude-pets\" /b)"
+    ]
+  }
+}

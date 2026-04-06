@@ -1,0 +1,6 @@
+@echo off
+echo Creating startup shortcut...
+powershell -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Claude Pets.lnk'); $s.TargetPath = 'J:\02.Projects\claude-pets\start-silent.vbs'; $s.WorkingDirectory = 'J:\02.Projects\claude-pets'; $s.Description = 'Claude Pets Overlay'; $s.Save()"
+echo Done! Claude Pets registered and starting now...
+echo To remove, delete: %APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Claude Pets.lnk
+start "" "J:\02.Projects\claude-pets\start-silent.vbs"

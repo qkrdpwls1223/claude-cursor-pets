@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: rgba(0, 0, 0, 0.002);
+      user-select: none;
+      -webkit-app-region: no-drag;
+    }
+
+    .claude-pet {
+      position: absolute;
+      width: 64px;
+      height: 64px;
+      pointer-events: none;
+      transition: none;
+      will-change: transform;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+    }
+
+    .claude-pet svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Idle bobbing — transform 충돌 방지를 위해 margin-top 사용 */
+    @keyframes bob {
+      0%, 100% { margin-top: 0; }
+      50% { margin-top: -4px; }
+    }
+
+    .claude-pet.idle {
+      animation: bob 2s ease-in-out infinite;
+    }
+
+    /* Status indicator */
+    #status {
+      position: fixed;
+      bottom: 12px;
+      right: 12px;
+      background: rgba(30, 30, 30, 0.85);
+      color: #e8ddd3;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+      backdrop-filter: blur(8px);
+    }
+    #status.visible { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div id="pet-container"></div>
+  <div id="status">Claude Pets: 0 sessions</div>
+
+  <script>
+    // ── SVG 캐릭터 ──
+    const COLORS = [
+      '#D97757',  // Claude 오리지널
+      '#9B7ED8',  // 보라
+      '#5BA3C9',  // 파랑
+      '#D4A843',  // 골드
+      '#5BBD6B',  // 초록
+      '#D46B7C',  // 로즈
+    ];
+
+    // 기본 SVG (claudecode-color.svg)
+    let baseSvg = `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z" fill="#D97757" fill-rule="evenodd"/>
+    </svg>`;
+
+    function createClaudeSVG(index = 0) {
+      const color = COLORS[index % COLORS.length];
+      // SVG 내 fill 색상을 인덱스별 색으로 교체
+      return baseSvg.replace(/fill="[^"]*"/g, (match, offset) => {
+        // 첫 번째 fill 속성만 색상 교체 (fill-rule 등은 건드리지 않음)
+        if (match.startsWith('fill="#') || match.startsWith('fill="rgb')) {
+          return `fill="${color}"`;
+        }
+        return match;
+      });
+    }
+
+    // ── Pet State ──
+    const container = document.getElementById('pet-container');
+    const statusEl = document.getElementById('status');
+    let pets = [];
+    let mouseX = -9999, mouseY = -9999;  // 유효 좌표 받기 전까지 화면 밖
+    let hasValidMouse = false;
+    let pendingCount = 0;
+    let sessionCount = 0;
+
+    class Pet {
+      constructor(index) {
+        this.index = index;
+        this.x = mouseX + 30;
+        this.y = mouseY + 25;
+        this.idle = false;
+        this.flipX = false;
+
+        // 뒤로 갈수록 느리게 따라옴 (잔상 효과)
+        this.speed = 0.0005 * Math.pow(0.3, index); // 첫째: 빠름, 뒤로 갈수록 느긋
+
+        this.el = document.createElement('div');
+        this.el.className = 'claude-pet';
+        this.el.innerHTML = createClaudeSVG(index);
+        container.appendChild(this.el);
+      }
+
+      snapTo(x, y) {
+        this.x = x;
+        this.y = y;
+      }
+
+      update(dt, leaderX, leaderY, mouseMoving) {
+        // 움직일 때: 리더를 따라감 (잔상 꼬리)
+        // 멈출 때: 가로로 나란히 정렬
+        const restX = mouseX + 30 + this.index * 50;
+        const restY = mouseY + 25;
+
+        // mouseMoving에 따라 타겟 블렌딩
+        const blend = mouseMoving ? 0 : 1;
+        this.blendToRest = this.blendToRest || 0;
+        this.blendToRest += (blend - this.blendToRest) * Math.min(dt * 3, 1);
+
+        const targetX = leaderX + (restX - leaderX) * this.blendToRest;
+        const targetY = leaderY + (restY - leaderY) * this.blendToRest;
+
+        const dx = targetX - this.x;
+        const dy = targetY - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        const lerp = 1 - Math.pow(this.speed, dt);
+        this.x += dx * lerp;
+        this.y += dy * lerp;
+
+        // Flip based on horizontal movement
+        if (Math.abs(dx) > 1) {
+          this.flipX = dx < 0;
+        }
+
+        // Idle if close to target
+        const wasIdle = this.idle;
+        this.idle = dist < 3;
+        if (this.idle !== wasIdle) {
+          this.el.classList.toggle('idle', this.idle);
+        }
+
+        // Render
+        const scaleX = this.flipX ? -1 : 1;
+        this.el.style.transform = `translate(${this.x - 32}px, ${this.y - 32}px) scaleX(${scaleX})`;
+      }
+
+      destroy() {
+        this.el.remove();
+      }
+    }
+
+    // ── Session count handling ──
+    function updatePetCount(count) {
+      // Ensure at least 1 for demo/dev (remove this line if you want 0 pets with 0 sessions)
+      sessionCount = count;
+
+      // Add or remove pets
+      while (pets.length < count) {
+        const p = new Pet(pets.length);
+        // 생성 즉시 마우스 위치로 스냅
+        p.snapTo(mouseX + 30, mouseY + 25);
+        pets.push(p);
+      }
+      while (pets.length > count) {
+        pets.pop().destroy();
+      }
+    }
+
+    // ── Animation loop (setInterval로 throttle 방지) ──
+    let lastTime = performance.now();
+    let prevMouseX = mouseX, prevMouseY = mouseY;
+    let mouseStillTime = 0;
+
+    setInterval(() => {
+      const now = performance.now();
+      const dt = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+
+      // 마우스 이동 감지
+      const mouseDist = Math.abs(mouseX - prevMouseX) + Math.abs(mouseY - prevMouseY);
+      if (mouseDist > 2) {
+        mouseStillTime = 0;
+      } else {
+        mouseStillTime += dt;
+      }
+      prevMouseX = mouseX;
+      prevMouseY = mouseY;
+
+      const mouseMoving = mouseStillTime < 0.3; // 0.3초 이상 정지 → 정렬 시작
+
+      let leaderX = mouseX + 30;
+      let leaderY = mouseY + 25;
+      for (const pet of pets) {
+        pet.update(dt, leaderX, leaderY, mouseMoving);
+        leaderX = pet.x;
+        leaderY = pet.y;
+      }
+    }, 16);
+
+    // ── IPC listeners ──
+    let isActiveMon = false;
+
+    window.electronAPI.onWindowOffset((offset) => {});
+
+    window.electronAPI.onUpdateSvg((svg) => {
+      baseSvg = svg;
+      // 기존 pet들 SVG 교체
+      for (const pet of pets) {
+        pet.el.innerHTML = createClaudeSVG(pet.index);
+      }
+    });
+
+    window.electronAPI.onMouseMove((point) => {
+      // 항상 로컬 좌표 업데이트 (화면 밖이어도 pet이 자연스럽게 따라감)
+      mouseX = point.x;
+      mouseY = point.y;
+
+      if (!hasValidMouse && point.active) {
+        hasValidMouse = true;
+        if (pendingCount > 0) {
+          updatePetCount(pendingCount);
+          pendingCount = 0;
+        }
+      }
+    });
+
+    window.electronAPI.onSessionCount((count) => {
+      if (!hasValidMouse) {
+        pendingCount = count;
+      } else {
+        updatePetCount(count);
+      }
+    });
+  </script>
+</body>
+</html>

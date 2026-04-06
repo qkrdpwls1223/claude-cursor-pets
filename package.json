@@ -1,0 +1,16 @@
+{
+  "name": "claude-pets",
+  "version": "1.0.0",
+  "description": "Claude characters follow your mouse — one per active Claude Code session",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.0"
+  }
+}
