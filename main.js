@@ -35,6 +35,16 @@ function sendSvgToAll() {
   } catch { /* ignore */ }
 }
 
+function sendSizeToAll() {
+  const cfg = loadConfig();
+  const size = cfg.petSize || 64;
+  for (const win of overlayWindows) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('update-size', size);
+    }
+  }
+}
+
 function createOverlay() {
   const displays = screen.getAllDisplays();
 
@@ -67,6 +77,7 @@ function createOverlay() {
     win.webContents.on('did-finish-load', () => {
       win.webContents.send('window-offset', { x, y, width, height });
       sendSvgToAll();
+      sendSizeToAll();
     });
 
     overlayWindows.push(win);
@@ -133,6 +144,25 @@ function createTray() {
           }
           updateMenu();
         },
+      },
+      {
+        label: 'Size',
+        submenu: [
+          { label: 'S (32px)', value: 32 },
+          { label: 'M (48px)', value: 48 },
+          { label: 'L (64px)', value: 64 },
+          { label: 'XL (96px)', value: 96 },
+        ].map(item => ({
+          label: item.label,
+          type: 'radio',
+          checked: (loadConfig().petSize || 64) === item.value,
+          click: () => {
+            const cfg = loadConfig();
+            cfg.petSize = item.value;
+            saveConfig(cfg);
+            sendSizeToAll();
+          },
+        })),
       },
       {
         label: 'Change Character...',
